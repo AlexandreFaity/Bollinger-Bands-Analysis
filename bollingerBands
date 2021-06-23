@@ -15,7 +15,7 @@ import yfinance as yf
 equity = yf.Ticker ("TLSA")
 startDate = '2020-01-01'
 endDate = '2021-06-22'
-stockDf = equity.history(interval="1d",start=startDate, end=endDate)
+stock = equity.history(interval="1d",start=startDate, end=endDate)
 
 #Calculation of the sma
 
@@ -23,8 +23,8 @@ def sma(data, window):
     sma = data.rolling(window = window).mean()
     return sma
 
-stockDf['sma_20'] = sma(stockDf['Close'], 20)
-stockDf.tail()
+stock['sma_20'] = sma(stock['Close'], 20)
+stock.tail()
 
 #Calculation of the bollingerBands
 
@@ -34,15 +34,15 @@ def bollingerBands (data, sma, window):
   lowerBollingerBand = sma - std * 2
   return upperBollingerBand, lowerBollingerBand
 
-stockDf['upperBollingerBand'], stockDf['lowerBollingerBand'] = bollingerBands(stockDf['Close'], stockDf ['sma_20'], 20)
-stockDf.tail()
+stock['upperBollingerBand'], stock['lowerBollingerBand'] = bollingerBands(stock['Close'], stock ['sma_20'], 20)
+stock.tail()
 
 #plot results of the bollingerBands
 
-stockDf['Close'].plot(label = 'Close PRICES', color = 'skyblue')
-stockDf['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
-stockDf['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
-stockDf['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+stock['Close'].plot(label = 'Close PRICES', color = 'skyblue')
+stock['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+stock['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
+stock['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
 plt.show()
 
 #implementing our trading strategy
@@ -82,17 +82,17 @@ def implementBollingerBandsStrategy (data, lowerBollingerBand, UpperBollingerBan
   return buyPrice, sellPrice, bollingerBandsSignal
 
 
-buyPrice, sellPrice, bollingerBandsSignal = implementBollingerBandsStrategy(stockDf['Close'], stockDf['lowerBollingerBand'], stockDf['upperBollingerBand'])
+buyPrice, sellPrice, bollingerBandsSignal = implementBollingerBandsStrategy(stock['Close'], stock['lowerBollingerBand'], stock['upperBollingerBand'])
 
 #plotting the graph of trading strategy
 
-stockDf['Close'].plot(label = 'Close PRICES', color = 'skyblue')
-stockDf['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
-stockDf['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
-stockDf['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
-plt.scatter(stockDf.index, buyPrice, marker='^', color = 'green', label = 'BUY', s=200)
-plt.scatter(stockDf.index, sellPrice, marker='v', color = 'red', label = 'SELL', s=200)
-plt.title('stockDf BOLLINGER BANDS TRADING STRATEGY')
+stock['Close'].plot(label = 'Close PRICES', color = 'skyblue')
+stock['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+stock['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
+stock['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+plt.scatter(stock.index, buyPrice, marker='^', color = 'green', label = 'BUY', s=200)
+plt.scatter(stock.index, sellPrice, marker='v', color = 'red', label = 'SELL', s=200)
+plt.title('stock BOLLINGER BANDS TRADING STRATEGY')
 plt.legend(loc = 'upper left')
 plt.show()
 
@@ -106,7 +106,7 @@ for i in range (len(bollingerBandsSignal)):
   else:
     position.append(1)
 
-for i in range(len(stockDf['Close'])):
+for i in range(len(stock['Close'])):
   if bollingerBandsSignal[i] == 1:
     position [i] = 1
   elif bollingerBandsSignal[i] == -1:
@@ -114,11 +114,11 @@ for i in range(len(stockDf['Close'])):
   else:
     position [i] = position [i-1]
 
-upperBollingerBand = stockDf['upperBollingerBand']
-lowerBollingerBand = stockDf['lowerBollingerBand']
-ClosePrice = stockDf ['Close']
-bollingerBandsSignal = pd.DataFrame(bollingerBandsSignal).rename(columns = {0:'bollingerBandsSignal'}).set_index(stockDf.index)
-position = pd.DataFrame(position).rename(columns = {0:'bollingerBandsPosition'}).set_index(stockDf.index)
+upperBollingerBand = stock['upperBollingerBand']
+lowerBollingerBand = stock['lowerBollingerBand']
+ClosePrice = stock ['Close']
+bollingerBandsSignal = pd.DataFrame(bollingerBandsSignal).rename(columns = {0:'bollingerBandsSignal'}).set_index(stock.index)
+position = pd.DataFrame(position).rename(columns = {0:'bollingerBandsPosition'}).set_index(stock.index)
 
 frames = [ClosePrice, upperBollingerBand, lowerBollingerBand, bollingerBandsSignal, position]
 strategy = pd.concat(frames, join = 'inner', axis = 1)
@@ -128,12 +128,12 @@ strategy
 
 #Backtesting our strategy
 
-stockDfRet = pd.DataFrame(np.diff(stockDf['Close'])).rename(columns = {0:'returns'})
+stockRet = pd.DataFrame(np.diff(stock['Close'])).rename(columns = {0:'returns'})
 bollingerBandsStrategyReturn = []
 
-for i in range(len(stockDfRet)):
+for i in range(len(stockRet)):
   try:
-    returns = stockDfRet['returns'][i]*strategy['bollingerBandsPosition'][i]
+    returns = stockRet['returns'][i]*strategy['bollingerBandsPosition'][i]
     bollingerBandsStrategyReturn.append(returns)
   except:
     pass
@@ -141,7 +141,7 @@ for i in range(len(stockDfRet)):
 bollingerBandsStrategyReturnDataFrame = pd.DataFrame(bollingerBandsStrategyReturn).rename(columns = {0:'bollingerBandsReturns'})
 
 investmentValue = 100000
-numberOfStocks = math.floor(investmentValue/stockDf['Close'][-1])
+numberOfStocks = math.floor(investmentValue/stock['Close'][-1])
 bollingerBandsInvestmentReturn = []
 
 for i in range (len(bollingerBandsStrategyReturnDataFrame['bollingerBandsReturns'])):
