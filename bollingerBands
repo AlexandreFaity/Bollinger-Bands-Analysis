@@ -1,0 +1,185 @@
+#Tuto's link: https://medium.com/codex/algorithmic-trading-with-bollinger-bands-in-python-1b0a00c9ef99
+#import modules required
+
+import pandas as pd 
+import matplotlib.pyplot as plt 
+import requests
+import math 
+import numpy as np
+from termcolor import colored as cl 
+
+#Retrieve data from TLSA
+
+def get_historic_data(symbol):
+    ticker = symbol
+    iex_api_key = 'Tsk_30a2677082d54c7b8697675d84baf94b'
+    api_url = f'https://sandbox.iexapis.com/stable/stock/{ticker}/chart/max?token={iex_api_key}'
+    df = requests.get(api_url).json()
+    
+    date = []
+    open = []
+    high = []
+    low = []
+    close = []
+    
+    for i in range(len(df)):
+        date.append(df[i]['date'])
+        open.append(df[i]['open'])
+        high.append(df[i]['high'])
+        low.append(df[i]['low'])
+        close.append(df[i]['close'])
+    
+    date_df = pd.DataFrame(date).rename(columns = {0:'date'})
+    open_df = pd.DataFrame(open).rename(columns = {0:'open'})
+    high_df = pd.DataFrame(high).rename(columns = {0:'high'})
+    low_df = pd.DataFrame(low).rename(columns = {0:'low'})
+    close_df = pd.DataFrame(close).rename(columns = {0:'close'})
+    frames = [date_df, open_df, high_df, low_df, close_df]
+    df = pd.concat(frames, axis = 1, join = 'inner')
+    return df
+
+tsla = get_historic_data('TSLA')
+tsla = tsla.set_index('date')
+tsla = tsla[tsla.index >= '2020-01-01']
+tsla.to_csv('tsla.csv')
+
+tsla = pd.read_csv('tsla.csv').set_index('date')
+tsla.index = pd.to_datetime(tsla.index)
+tsla.tail()
+
+#Calculation of the sma
+
+def sma(data, window):
+    sma = data.rolling(window = window).mean()
+    return sma
+
+tsla['sma_20'] = sma(tsla['close'], 20)
+tsla.tail()
+
+#Calculation of the bollingerBands
+
+def bollingerBands (data, sma, window):
+  std = data.rolling(window = window).std()
+  upperBollingerBand = sma + std * 2
+  lowerBollingerBand = sma - std * 2
+  return upperBollingerBand, lowerBollingerBand
+
+tsla['upperBollingerBand'], tsla['lowerBollingerBand'] = bollingerBands(tsla['close'], tsla ['sma_20'], 20)
+tsla.tail()
+
+#plot results of the bollingerBands
+
+tsla['close'].plot(label = 'CLOSE PRICES', color = 'skyblue')
+tsla['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+tsla['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
+tsla['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+plt.show()
+
+#implementing our trading strategy
+
+def implementBollingerBandsStrategy (data, lowerBollingerBand, UpperBollingerBand):
+  buyPrice = []
+  sellPrice = []
+  bollingerBandsSignal = []
+  signal = 0
+
+  for i in range(len(data)):
+    if data[i-1] > lowerBollingerBand [i-1] and data[i] < lowerBollingerBand [i]:
+      if signal != 1:
+        buyPrice.append(data[i])
+        sellPrice.append(np.nan)
+        signal = 1
+        bollingerBandsSignal.append(signal)
+      else:
+        buyPrice.append(np.nan)
+        sellPrice.append(np.nan)
+        bollingerBandsSignal.append(0)
+    elif data [i-1] < UpperBollingerBand[i-1] and data[i] > UpperBollingerBand [i]:
+      if signal != -1:
+        buyPrice.append(np.nan)
+        sellPrice.append(data[i])
+        signal = -1
+        bollingerBandsSignal.append(signal)
+      else:
+        buyPrice.append(np.nan)
+        sellPrice.append(np.nan)
+        bollingerBandsSignal.append(0)
+    else:
+      buyPrice.append(np.nan)
+      sellPrice.append(np.nan)
+      bollingerBandsSignal.append(0)
+  
+  return buyPrice, sellPrice, bollingerBandsSignal
+
+
+buyPrice, sellPrice, bollingerBandsSignal = implementBollingerBandsStrategy(tsla['close'], tsla['lowerBollingerBand'], tsla['upperBollingerBand'])
+
+#plotting the graph of trading strategy
+
+tsla['close'].plot(label = 'CLOSE PRICES', color = 'skyblue')
+tsla['upperBollingerBand'].plot(label = 'UPPER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+tsla['sma_20'].plot(label = 'SMA 20',  linestyle = '--', linewidth = 1, color = 'grey')
+tsla['lowerBollingerBand'].plot(label = 'LOWER BB 20', linestyle = '--', linewidth = 1, color = 'black')
+plt.scatter(tsla.index, buyPrice, marker='^', color = 'green', label = 'BUY', s=200)
+plt.scatter(tsla.index, sellPrice, marker='v', color = 'red', label = 'SELL', s=200)
+plt.title('TSLA BOLLINGER BANDS TRADING STRATEGY')
+plt.legend(loc = 'upper left')
+plt.show()
+
+#Check if we hold the hold the stock or not
+
+position = []
+
+for i in range (len(bollingerBandsSignal)):
+  if bollingerBandsSignal [i] > 1:
+    position.append(0)
+  else:
+    position.append(1)
+
+for i in range(len(tsla['close'])):
+  if bollingerBandsSignal[i] == 1:
+    position [i] = 1
+  elif bollingerBandsSignal[i] == -1:
+    position [i] = 0
+  else:
+    position [i] = position [i-1]
+
+upperBollingerBand = tsla['upperBollingerBand']
+lowerBollingerBand = tsla['lowerBollingerBand']
+closePrice = tsla ['close']
+bollingerBandsSignal = pd.DataFrame(bollingerBandsSignal).rename(columns = {0:'bollingerBandsSignal'}).set_index(tsla.index)
+position = pd.DataFrame(position).rename(columns = {0:'bollingerBandsPosition'}).set_index(tsla.index)
+
+frames = [closePrice, upperBollingerBand, lowerBollingerBand, bollingerBandsSignal, position]
+strategy = pd.concat(frames, join = 'inner', axis = 1)
+strategy = strategy.reset_index().drop('date', axis = 1)
+
+strategy
+
+#Backtesting our strategy
+
+tslaRet = pd.DataFrame(np.diff(tsla['close'])).rename(columns = {0:'returns'})
+bollingerBandsStrategyReturn = []
+
+for i in range(len(tslaRet)):
+  try:
+    returns = tslaRet['returns'][i]*strategy['bollingerBandsPosition'][i]
+    bollingerBandsStrategyReturn.append(returns)
+  except:
+    pass
+
+bollingerBandsStrategyReturnDataFrame = pd.DataFrame(bollingerBandsStrategyReturn).rename(columns = {0:'bollingerBandsReturns'})
+
+investmentValue = 100000
+numberOfStocks = math.floor(investmentValue/tsla['close'][-1])
+bollingerBandsInvestmentReturn = []
+
+for i in range (len(bollingerBandsStrategyReturnDataFrame['bollingerBandsReturns'])):
+  returns = numberOfStocks*bollingerBandsStrategyReturnDataFrame['bollingerBandsReturns'][i]
+  bollingerBandsInvestmentReturn.append(returns)
+
+bollingerBandsInvestmentReturnDataFrame = pd.DataFrame(bollingerBandsInvestmentReturn).rename(columns = {0:'investmentReturns'})
+totalInvestmentReturn = round(sum(bollingerBandsInvestmentReturnDataFrame['investmentReturns']), 2)
+profitPercentage = math.floor ((totalInvestmentReturn/investmentValue)*100)
+print('Profit gained from the bollinger band strategy by investing ', investmentValue, 'in', 'TSLA ', ': {}'.format(totalInvestmentReturn))
+print('Profit percentage of the bollinger band strategy : {}%'.format(profitPercentage))
